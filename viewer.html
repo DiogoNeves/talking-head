@@ -878,6 +878,139 @@ Return your response in JSON format:
                 }
             }
 
+            async analyzeSegments() {
+                if (!this.transcriptData || !this.transcriptData.segments || this.analysisInProgress) {
+                    return;
+                }
+
+                const modelSelect = document.getElementById('model-select');
+                const selectedModel = modelSelect.value;
+                if (!selectedModel) {
+                    this.showError('Please select a model');
+                    return;
+                }
+
+                this.analysisInProgress = true;
+                this.segmentAnalysis = {};
+                
+                const analyzeButton = document.getElementById('analyze-segments-btn');
+                const progressContainer = document.getElementById('analysis-progress');
+                const progressText = document.getElementById('progress-text');
+                const progressFill = document.getElementById('progress-bar-fill');
+
+                analyzeButton.disabled = true;
+                analyzeButton.textContent = 'Analyzing...';
+                progressContainer.style.display = 'block';
+
+                const segments = this.transcriptData.segments;
+                const batchSize = 5; // Process 5 segments at a time
+                const totalBatches = Math.ceil(segments.length / batchSize);
+
+                try {
+                    for (let i = 0; i < segments.length; i += batchSize) {
+                        const batch = segments.slice(i, Math.min(i + batchSize, segments.length));
+                        const batchIndex = Math.floor(i / batchSize) + 1;
+                        
+                        progressText.textContent = `${Math.min(i + batchSize, segments.length)}/${segments.length}`;
+                        progressFill.style.width = `${(batchIndex / totalBatches) * 100}%`;
+
+                        await this.analyzeBatch(batch, selectedModel, i);
+                        
+                        // Small delay to prevent overwhelming the API
+                        if (batchIndex < totalBatches) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+
+                    this.displayAnalysisResults();
+                    this.updateTranscriptWithFlags();
+                    
+                } catch (error) {
+                    this.showError(`Analysis failed: ${error.message}`);
+                } finally {
+                    this.analysisInProgress = false;
+                    analyzeButton.disabled = false;
+                    analyzeButton.textContent = 'Analyze Segments';
+                    progressContainer.style.display = 'none';
+                }
+            }
+
+            async analyzeBatch(batch, model, startIndex) {
+                const batchText = batch.map((segment, idx) => 
+                    `Segment ${startIndex + idx + 1} [${this.formatTime(segment.start)}-${this.formatTime(segment.end)}]: "${segment.text}"`
+                ).join('\n');
+
+                // Include context from previous segments for better duplicate detection
+                const contextSegments = this.transcriptData.segments.slice(Math.max(0, startIndex - 3), startIndex);
+                const contextText = contextSegments.length > 0 ? 
+                    'Previous context:\n' + contextSegments.map((seg, idx) => 
+                        `Context ${idx + 1}: "${seg.text}"`
+                    ).join('\n') + '\n\n' : '';
+
+                const prompt = `You are analyzing video transcript segments for editing purposes. For each segment, identify potential issues:
+
+1. UNCLEAR: Speech that seems unclear, has stuttering, incomplete sentences, or poor transcription quality
+2. DUPLICATE: Content that repeats or is very similar to previous segments (semantic similarity)
+3. REPETITION: Exact or near-exact phrase repetitions within the segment
+4. FILLER: "Um", "uh", false starts, tangents, or low-value content
+5. LOW_CONFIDENCE: Segments that seem disconnected or poorly transcribed
+
+${contextText}Current segments to analyze:
+${batchText}
+
+Respond in JSON format:
+{
+  "analyses": [
+    {
+      "segmentIndex": 1,
+      "flags": ["UNCLEAR", "FILLER"],
+      "confidence": 0.8,
+      "reasoning": "Brief explanation",
+      "duplicateOf": null
+    }
+  ]
+}`;
+
+                const response = await fetch(`${this.lmStudioUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: 'system', content: 'You are a video editing assistant that analyzes transcript segments for quality issues.' },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.2
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Analysis request failed: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const content = result.choices[0].message.content;
+                
+                try {
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const analysisData = JSON.parse(jsonMatch[0]);
+                        
+                        analysisData.analyses?.forEach(analysis => {
+                            const globalIndex = startIndex + analysis.segmentIndex - 1;
+                            this.segmentAnalysis[globalIndex] = {
+                                flags: analysis.flags || [],
+                                confidence: analysis.confidence || 0.5,
+                                reasoning: analysis.reasoning || '',
+                                duplicateOf: analysis.duplicateOf
+                            };
+                        });
+                    }
+                } catch (parseError) {
+                    console.warn('Failed to parse analysis result:', parseError);
+                }
+            }
+
             displayTopics() {
                 const container = document.getElementById('topics-container');
                 const placeholder = document.getElementById('topics-placeholder');
@@ -1026,6 +1159,46 @@ Return your response in JSON format:
                 `;
                 
                 resultsPanel.style.display = 'block';
+            }
+
+            renderTranscriptSegments() {
+                const container = document.getElementById('transcript-container');
+                
+                container.innerHTML = this.transcriptData.segments.map((segment, index) => {
+                    const analysis = this.segmentAnalysis[index];
+                    const flagClasses = analysis?.flags?.map(flag => flag.toLowerCase().replace('_', '-')).join(' ') || '';
+                    
+                    return `
+                        <div class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
+                            ${analysis?.flags?.length > 0 ? `
+                                <div class="segment-flags">
+                                    ${analysis.flags.map(flag => 
+                                        `<span class="segment-flag flag-${flag.toLowerCase().replace('_', '-')}">${flag.replace('_', ' ')}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                            <div class="segment-timestamp">${this.formatTime(segment.start)} - ${this.formatTime(segment.end)}</div>
+                            <div class="segment-text">${segment.text}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Add click listeners to segments
+                container.querySelectorAll('.segment').forEach(segment => {
+                    segment.addEventListener('click', () => {
+                        const startTime = parseFloat(segment.dataset.start);
+                        const index = parseInt(segment.dataset.index);
+                        
+                        if (this.videoElement) {
+                            this.videoElement.currentTime = startTime;
+                        }
+                        
+                        // Show analysis details if available
+                        if (this.segmentAnalysis[index]) {
+                            this.showSegmentAnalysisDetails(index);
+                        }
+                    });
+                });
             }
 
             renderTranscriptSegments() {
