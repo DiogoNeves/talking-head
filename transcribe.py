@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-import sys
 import json
 import tempfile
 import os
 from pathlib import Path
 import gc
+from typing import Optional
 
+import typer
 import whisper
 import ffmpeg
 
@@ -93,18 +94,34 @@ def format_output(result):
     return output
 
 
-def main():
-    if len(sys.argv) < 3 or len(sys.argv) > 4:
-        print("Usage: python transcribe.py <video_file> <output_file> [vocabulary_file]")
-        sys.exit(1)
+def main(
+    video_path: str = typer.Argument(
+        help="Path to video file (use '-' for stdin)"
+    ),
+    output_path: str = typer.Argument(
+        help="Path to output JSON file"
+    ),
+    vocabulary: Optional[str] = typer.Option(
+        None, "--vocab", "-v",
+        help="Path to vocabulary file (one word per line)"
+    )
+):
+    """Transcribe video using OpenAI Whisper Large with word-level timestamps."""
     
-    video_path = sys.argv[1]
-    output_path = sys.argv[2]
-    vocab_path = sys.argv[3] if len(sys.argv) == 4 else None
+    # Handle stdin input
+    stdin_temp_path = None
+    if video_path == "-":
+        import shutil
+        # Create temporary file for stdin data
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as temp_stdin:
+            stdin_temp_path = temp_stdin.name
+            typer.echo("Reading video data from stdin...")
+            shutil.copyfileobj(typer.get_binary_stream('stdin'), temp_stdin)
+        video_path = stdin_temp_path
     
     if not os.path.exists(video_path):
-        print(f"Error: Video file '{video_path}' not found")
-        sys.exit(1)
+        typer.echo(f"Error: Video file '{video_path}' not found", err=True)
+        raise typer.Exit(1)
     
     # Create temporary audio file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
@@ -112,14 +129,14 @@ def main():
     
     try:
         # Extract audio from video
-        print(f"Extracting audio from {video_path}...")
+        typer.echo(f"Extracting audio from {video_path}...")
         extract_audio(video_path, temp_audio_path)
         
         # Load custom vocabulary if provided
-        vocabulary = load_vocabulary(vocab_path)
+        vocab_list = load_vocabulary(vocabulary)
         
         # Transcribe audio
-        result = transcribe_audio(temp_audio_path, vocabulary)
+        result = transcribe_audio(temp_audio_path, vocab_list)
         
         # Format output
         formatted_result = format_output(result)
@@ -128,19 +145,22 @@ def main():
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(formatted_result, f, indent=2, ensure_ascii=False)
         
-        print(f"Transcription completed! Output saved to {output_path}")
-        print(f"Detected language: {result['language']}")
-        print(f"Total segments: {len(result['segments'])}")
+        typer.echo(f"✅ Transcription completed! Output saved to {output_path}")
+        typer.echo(f"🗣️  Detected language: {result['language']}")
+        typer.echo(f"📝 Total segments: {len(result['segments'])}")
         
     except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
     
     finally:
         # Clean up temporary audio file
         if os.path.exists(temp_audio_path):
             os.unlink(temp_audio_path)
+        # Clean up stdin temporary file if created
+        if stdin_temp_path and os.path.exists(stdin_temp_path):
+            os.unlink(stdin_temp_path)
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)

@@ -22,16 +22,30 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python transcribe.py <video_file> <output_file> [vocabulary_file]
+python transcribe.py VIDEO_FILE OUTPUT_FILE [OPTIONS]
 ```
 
-Examples:
+### Arguments
+- `VIDEO_FILE`: Path to video file (use `-` for stdin)
+- `OUTPUT_FILE`: Path to output JSON file
+
+### Options
+- `--vocab`, `-v`: Path to vocabulary file (one word per line)
+- `--help`: Show help message
+
+### Examples
 ```bash
 # Basic transcription
 python transcribe.py my_video.mp4 transcript.json
 
 # With custom vocabulary
-python transcribe.py my_video.mp4 transcript.json vocab.txt
+python transcribe.py my_video.mp4 transcript.json --vocab vocab.txt
+
+# From stdin (pipe video data)
+cat video.mp4 | python transcribe.py - transcript.json
+
+# Get help
+python transcribe.py --help
 ```
 
 ### Custom Vocabulary
@@ -66,6 +80,8 @@ The script generates a JSON file with:
 - Automatic audio extraction from video
 - Clean temporary file handling
 - Custom vocabulary support for improved accuracy
+- Stdin support for piped video data
+- Nice CLI interface with Typer
 
 ## Notes
 
