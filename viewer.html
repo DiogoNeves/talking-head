@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Transcript Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 1px;
+        }
+
+        .panel {
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-panel {
+            flex: 1;
+            min-width: 400px;
+        }
+
+        .transcript-panel {
+            flex: 1.5;
+            min-width: 500px;
+            border-left: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .topics-panel {
+            flex: 0.8;
+            min-width: 300px;
+        }
+
+        .panel-header {
+            background-color: #fafafa;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* Video Panel */
+        .video-container {
+            width: 100%;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .video-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .time-display {
+            font-family: 'SF Mono', monospace;
+            font-size: 14px;
+            color: #666;
+            background-color: #f8f8f8;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #666;
+            background-color: #fafafa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .drop-zone:hover {
+            border-color: #007AFF;
+            background-color: #f0f8ff;
+        }
+
+        .drop-zone.dragover {
+            border-color: #007AFF;
+            background-color: #e6f3ff;
+        }
+
+        /* Transcript Panel */
+        .transcript-container {
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .segment {
+            margin-bottom: 12px;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .segment:hover {
+            background-color: #f8f8f8;
+        }
+
+        .segment.active {
+            background-color: #e6f3ff;
+            border-left: 3px solid #007AFF;
+        }
+
+        .segment-timestamp {
+            font-family: 'SF Mono', monospace;
+            font-size: 12px;
+            color: #007AFF;
+            font-weight: 600;
+            margin-bottom: 4px;
+            cursor: pointer;
+        }
+
+        .segment-text {
+            color: #333;
+        }
+
+        /* Topics Panel */
+        .topic-section {
+            margin-bottom: 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .topic-header {
+            background-color: #f8f8f8;
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .topic-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .topic-duration {
+            font-family: 'SF Mono', monospace;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .topic-timestamps {
+            padding: 8px 12px;
+            background-color: white;
+        }
+
+        .timestamp-link {
+            display: block;
+            padding: 4px 8px;
+            margin: 2px 0;
+            font-family: 'SF Mono', monospace;
+            font-size: 12px;
+            color: #007AFF;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .timestamp-link:hover {
+            background-color: #f0f8ff;
+        }
+
+        .repetition-indicator {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 8px;
+            margin: 8px 0;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #856404;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background-color: #ffe6e6;
+            color: #cc0000;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        /* LLM Controls */
+        .llm-controls {
+            background-color: #f8f8f8;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .llm-controls h4 {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .control-group select,
+        .control-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .control-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .extract-button {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .extract-button:hover {
+            background-color: #0056b3;
+        }
+
+        .extract-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .connection-status {
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .connection-status.connected {
+            color: #28a745;
+        }
+
+        .connection-status.disconnected {
+            color: #dc3545;
+        }
+
+        /* Segment Analysis */
+        .analysis-controls {
+            border-top: 1px solid #e0e0e0;
+            padding-top: 16px;
+            margin-top: 16px;
+        }
+
+        .analysis-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .analysis-button:hover {
+            background-color: #218838;
+        }
+
+
+        .analysis-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .analysis-progress {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+
+        /* Segment Flags */
+        .segment.unclear {
+            border-left: 3px solid #ffc107;
+            background-color: #fff9e6;
+        }
+
+        .segment.duplicate {
+            border-left: 3px solid #dc3545;
+            background-color: #ffe6e6;
+        }
+
+        .segment.repetition {
+            border-left: 3px solid #fd7e14;
+            background-color: #fff2e6;
+        }
+
+        .segment.filler {
+            border-left: 3px solid #6f42c1;
+            background-color: #f3e6ff;
+        }
+
+        .segment.low-confidence {
+            border-left: 3px solid #6c757d;
+            background-color: #f8f9fa;
+        }
+
+        .segment-flags {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .segment-flag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .flag-unclear {
+            background-color: #ffc107;
+            color: #856404;
+        }
+
+        .flag-duplicate {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .flag-repetition {
+            background-color: #fd7e14;
+            color: white;
+        }
+
+        .flag-filler {
+            background-color: #6f42c1;
+            color: white;
+        }
+
+        .flag-low-confidence {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        /* Analysis Results Panel */
+        .analysis-results {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .analysis-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .analysis-stat {
+            text-align: center;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .analysis-stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .analysis-stat-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Video Panel -->
+        <div class="panel video-panel">
+            <div class="panel-header">Video</div>
+            <div class="panel-content">
+                <div id="video-drop-zone" class="drop-zone">
+                    <p>Drop your video file here</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 8px;">Supported: MP4, WebM, MOV, AVI</p>
+                </div>
+                <div id="video-container" class="video-container" style="display: none;">
+                    <video id="video-player" controls>
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="video-controls" style="display: none;" id="video-controls">
+                    <span class="time-display" id="current-time">00:00</span>
+                    <span>/</span>
+                    <span class="time-display" id="total-time">00:00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transcript Panel -->
+        <div class="panel transcript-panel">
+            <div class="panel-header">Transcript</div>
+            <div class="panel-content">
+                <div id="transcript-drop-zone" class="drop-zone">
+                    <p>Drop your transcript JSON file here</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 8px;">Generated by transcribe.py</p>
+                </div>
+                <div id="transcript-container" class="transcript-container" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Topics Panel -->
+        <div class="panel topics-panel">
+            <div class="panel-header">Topics & Chapters</div>
+            <div class="panel-content">
+                <div id="llm-controls" class="llm-controls">
+                    <h4>LLM Topic Extraction</h4>
+                    <div class="control-group">
+                        <label for="model-select">Model:</label>
+                        <select id="model-select">
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="custom-prompt">Custom Prompt:</label>
+                        <textarea id="custom-prompt" placeholder="Enter custom instructions for topic extraction..."></textarea>
+                    </div>
+                    <button id="extract-topics-btn" class="extract-button">Extract Topics</button>
+                    <div id="connection-status" class="connection-status"></div>
+                    
+                    <div class="analysis-controls">
+                        <h4 style="margin-bottom: 12px; font-size: 14px;">Segment Analysis</h4>
+                        <button id="analyze-segments-btn" class="analysis-button" disabled>Analyze Segments</button>
+                        <div id="analysis-progress" class="analysis-progress" style="display: none;">
+                            <div>Analyzing segments: <span id="progress-text">0/0</span></div>
+                            <div class="progress-bar">
+                                <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="analysis-results" class="analysis-results">
+                        <div id="analysis-summary" class="analysis-summary"></div>
+                        <div style="font-size: 11px; color: #666; text-align: center;">
+                            Click flagged segments for detailed analysis
+                        </div>
+                    </div>
+                </div>
+                <div id="topics-container" style="display: none;"></div>
+                <div id="topics-placeholder" class="loading">
+                    Load a transcript to extract topics
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TranscriptViewer {
+            constructor() {
+                this.transcriptData = null;
+                this.videoElement = null;
+                this.currentSegmentIndex = -1;
+                this.topics = [];
+                this.lmStudioUrl = 'http://localhost:1234/v1';
+                this.availableModels = [];
+                this.segmentAnalysis = {};
+                this.analysisInProgress = false;
+                
+                this.initializeEventListeners();
+                this.initializeLLMControlsOnStart();
+            }
+
+            initializeEventListeners() {
+                // Video drop zone
+                const videoDropZone = document.getElementById('video-drop-zone');
+                videoDropZone.addEventListener('dragover', this.handleDragOver.bind(this));
+                videoDropZone.addEventListener('drop', this.handleVideoDrop.bind(this));
+                videoDropZone.addEventListener('click', () => this.openFileDialog('video'));
+
+                // Transcript drop zone
+                const transcriptDropZone = document.getElementById('transcript-drop-zone');
+                transcriptDropZone.addEventListener('dragover', this.handleDragOver.bind(this));
+                transcriptDropZone.addEventListener('drop', this.handleTranscriptDrop.bind(this));
+                transcriptDropZone.addEventListener('click', () => this.openFileDialog('transcript'));
+
+                // LLM controls
+                const extractButton = document.getElementById('extract-topics-btn');
+                extractButton.addEventListener('click', this.extractTopicsWithLLM.bind(this));
+
+                // Analysis controls
+                const analyzeButton = document.getElementById('analyze-segments-btn');
+                analyzeButton.addEventListener('click', this.analyzeSegments.bind(this));
+                
+
+                // Initialize LMStudio connection
+                this.initializeLMStudio();
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                e.currentTarget.classList.add('dragover');
+            }
+
+            handleVideoDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('dragover');
+                
+                const files = Array.from(e.dataTransfer.files);
+                const videoFile = files.find(file => file.type.startsWith('video/'));
+                
+                if (videoFile) {
+                    this.loadVideo(videoFile);
+                }
+            }
+
+            handleTranscriptDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('dragover');
+                
+                const files = Array.from(e.dataTransfer.files);
+                const jsonFile = files.find(file => file.name.endsWith('.json'));
+                
+                if (jsonFile) {
+                    this.loadTranscript(jsonFile);
+                }
+            }
+
+            openFileDialog(type) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                
+                if (type === 'video') {
+                    input.accept = 'video/*';
+                    input.onchange = (e) => {
+                        if (e.target.files[0]) {
+                            this.loadVideo(e.target.files[0]);
+                        }
+                    };
+                } else {
+                    input.accept = '.json';
+                    input.onchange = (e) => {
+                        if (e.target.files[0]) {
+                            this.loadTranscript(e.target.files[0]);
+                        }
+                    };
+                }
+                
+                input.click();
+            }
+
+            loadVideo(file) {
+                const videoContainer = document.getElementById('video-container');
+                const videoDropZone = document.getElementById('video-drop-zone');
+                const videoControls = document.getElementById('video-controls');
+                
+                this.videoElement = document.getElementById('video-player');
+                this.videoElement.src = URL.createObjectURL(file);
+                
+                videoDropZone.style.display = 'none';
+                videoContainer.style.display = 'block';
+                videoControls.style.display = 'flex';
+                
+                // Add video event listeners
+                this.videoElement.addEventListener('timeupdate', this.handleTimeUpdate.bind(this));
+                this.videoElement.addEventListener('loadedmetadata', this.updateDuration.bind(this));
+            }
+
+            loadTranscript(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.transcriptData = JSON.parse(e.target.result);
+                        this.displayTranscript();
+                        // Enable buttons now that we have transcript data
+                        document.getElementById('extract-topics-btn').disabled = false;
+                        document.getElementById('analyze-segments-btn').disabled = false;
+                        
+                    } catch (error) {
+                        this.showError('Invalid JSON file');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            displayTranscript() {
+                const container = document.getElementById('transcript-container');
+                const dropZone = document.getElementById('transcript-drop-zone');
+                
+                if (!this.transcriptData || !this.transcriptData.segments) {
+                    this.showError('Invalid transcript format');
+                    return;
+                }
+                
+                dropZone.style.display = 'none';
+                container.style.display = 'block';
+                
+                this.renderTranscriptSegments();
+            }
+
+            async initializeLMStudio() {
+                try {
+                    await this.loadAvailableModels();
+                    this.updateConnectionStatus(true);
+                } catch (error) {
+                    this.updateConnectionStatus(false, error.message);
+                }
+            }
+
+            async loadAvailableModels() {
+                const response = await fetch(`${this.lmStudioUrl}/models`);
+                if (!response.ok) {
+                    throw new Error('Failed to connect to LMStudio');
+                }
+                const data = await response.json();
+                this.availableModels = data.data || [];
+                this.populateModelSelect();
+            }
+
+            populateModelSelect() {
+                const modelSelect = document.getElementById('model-select');
+                modelSelect.innerHTML = '';
+                
+                if (this.availableModels.length === 0) {
+                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                    return;
+                }
+                
+                this.availableModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    modelSelect.appendChild(option);
+                });
+                
+                // Select first model by default
+                if (this.availableModels.length > 0) {
+                    modelSelect.value = this.availableModels[0].id;
+                }
+            }
+
+            initializeLLMControlsOnStart() {
+                // Show LLM controls immediately
+                document.getElementById('llm-controls').style.display = 'block';
+                document.getElementById('topics-placeholder').textContent = 'Load a transcript and extract topics with LLM';
+                
+                // Set default prompt immediately
+                this.setDefaultPrompt();
+                
+                // Disable buttons until transcript is loaded
+                document.getElementById('extract-topics-btn').disabled = true;
+                document.getElementById('analyze-segments-btn').disabled = true;
+                
+                // Initialize LMStudio connection
+                this.initializeLMStudio();
+            }
+
+            setDefaultPrompt() {
+                const promptTextarea = document.getElementById('custom-prompt');
+                if (!promptTextarea.value) {
+                    promptTextarea.value = `Analyze this video transcript and identify 4-6 main topics or chapters. For each topic:
+1. Provide a concise, descriptive title
+2. Identify the approximate start and end times
+3. Note if any topics are repeated or revisited
+
+Return your response in JSON format:
+{
+  "topics": [
+    {
+      "title": "Topic Title",
+      "startTime": 0.0,
+      "endTime": 120.5,
+      "isRepetition": false,
+      "repetitionOf": null
+    }
+  ]
+}`;
+                }
+            }
+
+            async extractTopicsWithLLM() {
+                if (!this.transcriptData || !this.transcriptData.segments) {
+                    this.showError('No transcript data available');
+                    return;
+                }
+
+                const modelSelect = document.getElementById('model-select');
+                const customPrompt = document.getElementById('custom-prompt');
+                const extractButton = document.getElementById('extract-topics-btn');
+
+                const selectedModel = modelSelect.value;
+                if (!selectedModel) {
+                    this.showError('Please select a model');
+                    return;
+                }
+
+                extractButton.disabled = true;
+                extractButton.textContent = 'Extracting...';
+
+                try {
+                    const transcriptText = this.transcriptData.segments.map(segment => 
+                        `[${this.formatTime(segment.start)} - ${this.formatTime(segment.end)}] ${segment.text}`
+                    ).join('\n');
+
+                    const response = await fetch(`${this.lmStudioUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: selectedModel,
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: 'You are a helpful assistant that analyzes video transcripts to extract main topics and chapters.'
+                                },
+                                {
+                                    role: 'user',
+                                    content: `${customPrompt.value}\n\nTranscript:\n${transcriptText}`
+                                }
+                            ],
+                            temperature: 0.3
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`LLM request failed: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const content = result.choices[0].message.content;
+                    
+                    try {
+                        // Try to parse JSON response
+                        const jsonMatch = content.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            const topicsData = JSON.parse(jsonMatch[0]);
+                            this.topics = topicsData.topics || [];
+                        } else {
+                            // Fallback: parse plain text response
+                            this.topics = this.parseTopicsFromText(content);
+                        }
+                    } catch (parseError) {
+                        // Fallback: parse plain text response
+                        this.topics = this.parseTopicsFromText(content);
+                    }
+
+                    this.displayTopics();
+                } catch (error) {
+                    this.showError(`Topic extraction failed: ${error.message}`);
+                } finally {
+                    extractButton.disabled = false;
+                    extractButton.textContent = 'Extract Topics';
+                }
+            }
+
+            parseTopicsFromText(text) {
+                // Simple fallback parser for non-JSON responses
+                const topics = [];
+                const lines = text.split('\n');
+                let currentTopic = null;
+
+                for (const line of lines) {
+                    // Look for topic titles (various formats)
+                    const titleMatch = line.match(/^\d+[.)]?\s*(.+?)\s*[-:]/i) || line.match(/^[-*]\s*(.+?)\s*[-:]/i);
+                    if (titleMatch) {
+                        if (currentTopic) {
+                            topics.push(currentTopic);
+                        }
+                        currentTopic = {
+                            title: titleMatch[1].trim(),
+                            startTime: 0,
+                            endTime: 0,
+                            isRepetition: false,
+                            repetitionOf: null
+                        };
+                    }
+                    
+                    // Look for time references
+                    const timeMatch = line.match(/(\d+):(\d+)/);
+                    if (timeMatch && currentTopic) {
+                        const time = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+                        if (currentTopic.startTime === 0) {
+                            currentTopic.startTime = time;
+                        }
+                        currentTopic.endTime = time;
+                    }
+                }
+
+                if (currentTopic) {
+                    topics.push(currentTopic);
+                }
+
+                return topics;
+            }
+
+            updateConnectionStatus(connected, error = null) {
+                const statusElement = document.getElementById('connection-status');
+                if (connected) {
+                    statusElement.textContent = '✓ Connected to LMStudio';
+                    statusElement.className = 'connection-status connected';
+                } else {
+                    statusElement.textContent = `✗ LMStudio connection failed${error ? ': ' + error : ''}`;
+                    statusElement.className = 'connection-status disconnected';
+                }
+            }
+
+            displayTopics() {
+                const container = document.getElementById('topics-container');
+                const placeholder = document.getElementById('topics-placeholder');
+                
+                if (!this.topics || this.topics.length === 0) {
+                    placeholder.textContent = 'No topics extracted';
+                    placeholder.style.display = 'block';
+                    container.style.display = 'none';
+                    return;
+                }
+                
+                placeholder.style.display = 'none';
+                container.style.display = 'block';
+                
+                container.innerHTML = this.topics.map((topic, index) => `
+                    <div class="topic-section">
+                        <div class="topic-header" onclick="viewer.jumpToTopic(${index})">
+                            <div class="topic-title">
+                                ${topic.title}
+                                ${topic.isRepetition ? ' (Repeat)' : ''}
+                            </div>
+                            <div class="topic-duration">${this.formatTime(topic.startTime)}</div>
+                        </div>
+                        <div class="topic-timestamps">
+                            <a href="#" class="timestamp-link" onclick="viewer.jumpToTime(${topic.startTime}); return false;">
+                                ${this.formatTime(topic.startTime)} - ${this.formatTime(topic.endTime)}
+                            </a>
+                            ${topic.isRepetition && topic.repetitionOf !== null ? `
+                                <div class="repetition-indicator">
+                                    Repeats topic from ${this.formatTime(this.topics[topic.repetitionOf].startTime)}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            jumpToTopic(topicIndex) {
+                if (this.videoElement && this.topics[topicIndex]) {
+                    this.videoElement.currentTime = this.topics[topicIndex].startTime;
+                }
+            }
+
+            jumpToTime(time) {
+                if (this.videoElement) {
+                    this.videoElement.currentTime = time;
+                }
+            }
+
+            handleTimeUpdate() {
+                if (!this.transcriptData) return;
+                
+                const currentTime = this.videoElement.currentTime;
+                document.getElementById('current-time').textContent = this.formatTime(currentTime);
+                
+                // Find current segment
+                const currentSegment = this.transcriptData.segments.findIndex(segment =>
+                    currentTime >= segment.start && currentTime <= segment.end
+                );
+                
+                if (currentSegment !== this.currentSegmentIndex) {
+                    // Update highlighting
+                    document.querySelectorAll('.segment').forEach((el, index) => {
+                        if (index === currentSegment) {
+                            el.classList.add('active');
+                            // Scroll into view
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } else {
+                            el.classList.remove('active');
+                        }
+                    });
+                    
+                    this.currentSegmentIndex = currentSegment;
+                }
+            }
+
+            updateDuration() {
+                document.getElementById('total-time').textContent = this.formatTime(this.videoElement.duration);
+            }
+
+            formatTime(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                
+                if (hours > 0) {
+                    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            displayAnalysisResults() {
+                const container = document.getElementById('analysis-summary');
+                const resultsPanel = document.getElementById('analysis-results');
+                
+                // Calculate statistics
+                const totalSegments = this.transcriptData.segments.length;
+                const analyzedSegments = Object.keys(this.segmentAnalysis).length;
+                
+                const flagCounts = {
+                    unclear: 0,
+                    duplicate: 0,
+                    repetition: 0,
+                    filler: 0,
+                    'low_confidence': 0
+                };
+                
+                Object.values(this.segmentAnalysis).forEach(analysis => {
+                    analysis.flags?.forEach(flag => {
+                        const key = flag.toLowerCase().replace('_', '-');
+                        if (key === 'low-confidence') {
+                            flagCounts['low_confidence']++;
+                        } else if (flagCounts.hasOwnProperty(key)) {
+                            flagCounts[key]++;
+                        }
+                    });
+                });
+                
+                const cleanSegments = totalSegments - analyzedSegments;
+                
+                container.innerHTML = `
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${totalSegments}</div>
+                        <div class="analysis-stat-label">Total</div>
+                    </div>
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${cleanSegments}</div>
+                        <div class="analysis-stat-label">Clean</div>
+                    </div>
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${flagCounts.unclear}</div>
+                        <div class="analysis-stat-label">Unclear</div>
+                    </div>
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${flagCounts.duplicate}</div>
+                        <div class="analysis-stat-label">Duplicate</div>
+                    </div>
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${flagCounts.repetition}</div>
+                        <div class="analysis-stat-label">Repetition</div>
+                    </div>
+                    <div class="analysis-stat">
+                        <div class="analysis-stat-value">${flagCounts.filler}</div>
+                        <div class="analysis-stat-label">Filler</div>
+                    </div>
+                `;
+                
+                resultsPanel.style.display = 'block';
+            }
+
+            renderTranscriptSegments() {
+                const container = document.getElementById('transcript-container');
+                
+                container.innerHTML = this.transcriptData.segments.map((segment, index) => {
+                    const analysis = this.segmentAnalysis[index];
+                    const flagClasses = analysis?.flags?.map(flag => flag.toLowerCase().replace('_', '-')).join(' ') || '';
+                    
+                    return `
+                        <div class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
+                            ${analysis?.flags?.length > 0 ? `
+                                <div class="segment-flags">
+                                    ${analysis.flags.map(flag => 
+                                        `<span class="segment-flag flag-${flag.toLowerCase().replace('_', '-')}">${flag.replace('_', ' ')}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                            <div class="segment-timestamp">${this.formatTime(segment.start)} - ${this.formatTime(segment.end)}</div>
+                            <div class="segment-text">${segment.text}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Add click listeners to segments
+                container.querySelectorAll('.segment').forEach(segment => {
+                    segment.addEventListener('click', () => {
+                        const startTime = parseFloat(segment.dataset.start);
+                        const index = parseInt(segment.dataset.index);
+                        
+                        if (this.videoElement) {
+                            this.videoElement.currentTime = startTime;
+                        }
+                        
+                        // Show analysis details if available
+                        if (this.segmentAnalysis[index]) {
+                            this.showSegmentAnalysisDetails(index);
+                        }
+                    });
+                });
+            }
+
+            updateTranscriptWithFlags() {
+                this.renderTranscriptSegments();
+            }
+
+            showSegmentAnalysisDetails(segmentIndex) {
+                const analysis = this.segmentAnalysis[segmentIndex];
+                if (!analysis) return;
+                
+                const segment = this.transcriptData.segments[segmentIndex];
+                const flagText = analysis.flags.map(f => f.replace('_', ' ')).join(', ');
+                alert(`Segment Analysis [${this.formatTime(segment.start)} - ${this.formatTime(segment.end)}]\n\nFlags: ${flagText}\nConfidence: ${(analysis.confidence * 100).toFixed(0)}%\nReasoning: ${analysis.reasoning}`);
+            }
+
+            showError(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = message;
+                document.querySelector('.transcript-panel .panel-content').prepend(errorDiv);
+                
+                setTimeout(() => errorDiv.remove(), 5000);
+            }
+        }
+
+        // Initialize the viewer
+        const viewer = new TranscriptViewer();
+    </script>
+</body>
+</html>
