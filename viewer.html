@@ -56,6 +56,13 @@
             color: #333;
         }
 
+        .header-row { display: flex; align-items: center; justify-content: space-between; }
+        .jump-controls { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 12px; }
+        .jump-controls input { width: 64px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .jump-controls button { padding: 4px 8px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .jump-controls button:hover { background: #f5f5f5; }
+        .jump-error { color: #dc3545; font-size: 11px; margin-left: 6px; }
+
         .panel-content {
             flex: 1;
             overflow-y: auto;
@@ -83,6 +90,20 @@
             align-items: center;
             margin-bottom: 16px;
         }
+
+        /* Segment Details (under video) */
+        .segment-details { display: none; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; background: #f8f9fa; }
+        .segment-details-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .segment-details-title { font-weight: 600; font-size: 14px; color: #333; }
+        .segment-details-time { font-family: 'SF Mono', monospace; font-size: 12px; color: #007AFF; }
+        .segment-details-text { font-size: 14px; color: #333; margin: 8px 0; }
+        .segment-details-flags { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
+        .segment-details-meta { font-size: 12px; color: #555; margin-top: 4px; }
+        .details-actions { display: flex; gap: 8px; margin-top: 8px; }
+        .details-actions .btn { padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; background: #fff; font-size: 12px; cursor: pointer; }
+        .details-actions .btn.primary { background: #007AFF; color: #fff; border-color: #007AFF; }
+        .details-actions .btn.primary:hover { background: #005ec2; }
+        .details-actions .btn:hover { background: #f3f3f3; }
 
         .time-display {
             font-family: 'SF Mono', monospace;
@@ -136,6 +157,9 @@
             background-color: #e6f3ff;
             border-left: 3px solid #007AFF;
         }
+
+        .segment.pulse-highlight { animation: pulse-bg 1.2s ease-out 1; }
+        @keyframes pulse-bg { 0% { box-shadow: inset 0 0 0 0 rgba(0,122,255,0.25); } 50% { box-shadow: inset 0 0 0 9999px rgba(0,122,255,0.1); } 100% { box-shadow: inset 0 0 0 0 rgba(0,122,255,0.0); } }
 
         .segment-timestamp {
             font-family: 'SF Mono', monospace;
@@ -468,12 +492,23 @@
                     <span>/</span>
                     <span class="time-display" id="total-time">00:00</span>
                 </div>
+                <div id="segment-details" class="segment-details"></div>
             </div>
         </div>
 
         <!-- Transcript Panel -->
         <div class="panel transcript-panel">
-            <div class="panel-header">Transcript</div>
+            <div class="panel-header">
+                <div class="header-row">
+                    <div>Transcript</div>
+                    <div class="jump-controls">
+                        <label for="jump-input" style="color:#555;">Segment #</label>
+                        <input id="jump-input" type="number" min="1" placeholder="e.g. 12" />
+                        <button id="jump-btn" type="button">Show</button>
+                        <span id="jump-error" class="jump-error"></span>
+                    </div>
+                </div>
+            </div>
             <div class="panel-content">
                 <div id="transcript-drop-zone" class="drop-zone">
                     <p>Drop your transcript JSON file here</p>
@@ -537,6 +572,7 @@
                 this.transcriptData = null;
                 this.videoElement = null;
                 this.currentSegmentIndex = -1;
+                this.detailSegmentIndex = null;
                 this.topics = [];
                 this.lmStudioUrl = 'http://localhost:1234/v1';
                 this.availableModels = [];
@@ -546,6 +582,29 @@
                 
                 this.initializeEventListeners();
                 this.initializeLLMControlsOnStart();
+                this.initializeJumpControls();
+            }
+
+            initializeJumpControls() {
+                const btn = document.getElementById('jump-btn');
+                const input = document.getElementById('jump-input');
+                const err = document.getElementById('jump-error');
+                if (!btn || !input) return;
+                const show = () => {
+                    err.textContent = '';
+                    const raw = input.value.trim();
+                    if (!raw) { err.textContent = 'Enter a number'; return; }
+                    const num = parseInt(raw, 10);
+                    if (isNaN(num) || num < 1) { err.textContent = 'Invalid number'; return; }
+                    const idx = num - 1; // 1-based to 0-based
+                    const el = this.getSegmentElement(idx);
+                    if (!el) { err.textContent = `Segment ${num} not found`; return; }
+                    this.scrollToSegment(idx, true);
+                };
+                btn.addEventListener('click', show);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); show(); }
+                });
             }
 
             initializeEventListeners() {
@@ -1202,7 +1261,7 @@ Respond in JSON format:
                     const flagClasses = analysis?.flags?.map(flag => flag.toLowerCase().replace('_', '-')).join(' ') || '';
                     
                     return `
-                        <div class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
+                        <div id="segment-${index}" class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
                             ${analysis?.flags?.length > 0 ? `
                                 <div class="segment-flags">
                                     ${analysis.flags.map(flag => 
@@ -1225,11 +1284,7 @@ Respond in JSON format:
                         if (this.videoElement) {
                             this.videoElement.currentTime = startTime;
                         }
-                        
-                        // Show analysis details if available
-                        if (this.segmentAnalysis[index]) {
-                            this.showSegmentAnalysisDetails(index);
-                        }
+                        this.showSegmentDetails(index);
                     });
                 });
             }
@@ -1242,7 +1297,7 @@ Respond in JSON format:
                     const flagClasses = analysis?.flags?.map(flag => flag.toLowerCase().replace('_', '-')).join(' ') || '';
                     
                     return `
-                        <div class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
+                        <div id="segment-${index}" class="segment ${flagClasses}" data-index="${index}" data-start="${segment.start}" data-end="${segment.end}">
                             ${analysis?.flags?.length > 0 ? `
                                 <div class="segment-flags">
                                     ${analysis.flags.map(flag => 
@@ -1265,11 +1320,7 @@ Respond in JSON format:
                         if (this.videoElement) {
                             this.videoElement.currentTime = startTime;
                         }
-                        
-                        // Show analysis details if available
-                        if (this.segmentAnalysis[index]) {
-                            this.showSegmentAnalysisDetails(index);
-                        }
+                        this.showSegmentDetails(index);
                     });
                 });
             }
@@ -1278,13 +1329,58 @@ Respond in JSON format:
                 this.renderTranscriptSegments();
             }
 
-            showSegmentAnalysisDetails(segmentIndex) {
+            showSegmentAnalysisDetails(segmentIndex) { this.showSegmentDetails(segmentIndex); }
+
+            getSegmentElement(index) { return document.getElementById(`segment-${index}`); }
+
+            scrollToSegment(index, highlight = false) {
+                const el = this.getSegmentElement(index);
+                if (!el) return false;
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (highlight) {
+                    el.classList.remove('pulse-highlight');
+                    // force reflow to restart animation
+                    void el.offsetWidth;
+                    el.classList.add('pulse-highlight');
+                    setTimeout(() => el.classList.remove('pulse-highlight'), 1400);
+                }
+                return true;
+            }
+
+            showSegmentDetails(segmentIndex) {
+                this.detailSegmentIndex = segmentIndex;
+                const box = document.getElementById('segment-details');
+                if (!box) return;
+                const seg = this.transcriptData?.segments?.[segmentIndex];
+                if (!seg) { box.style.display = 'none'; return; }
                 const analysis = this.segmentAnalysis[segmentIndex];
-                if (!analysis) return;
-                
-                const segment = this.transcriptData.segments[segmentIndex];
-                const flagText = analysis.flags.map(f => f.replace('_', ' ')).join(', ');
-                alert(`Segment Analysis [${this.formatTime(segment.start)} - ${this.formatTime(segment.end)}]\n\nFlags: ${flagText}\nConfidence: ${(analysis.confidence * 100).toFixed(0)}%\nReasoning: ${analysis.reasoning}`);
+                const flags = (analysis?.flags || []).map(f => `<span class="segment-flag flag-${f.toLowerCase().replace('_','-')}">${f.replace('_',' ')}</span>`).join('');
+                const conf = analysis?.confidence != null ? `${Math.round(analysis.confidence * 100)}%` : '—';
+                const reasoning = analysis?.reasoning || '';
+                box.innerHTML = `
+                    <div class="segment-details-header">
+                        <div class="segment-details-title">Segment #${segmentIndex + 1}</div>
+                        <div class="segment-details-time">${this.formatTime(seg.start)} - ${this.formatTime(seg.end)}</div>
+                    </div>
+                    <div class="segment-details-text">${seg.text}</div>
+                    ${flags ? `<div class="segment-details-flags">${flags}</div>` : ''}
+                    ${analysis ? `<div class="segment-details-meta">Confidence: ${conf}${reasoning ? ` • Reasoning: ${reasoning}` : ''}</div>` : '<div class="segment-details-meta">No analysis for this segment</div>'}
+                    <div class="details-actions">
+                        <button id="details-return" class="btn primary" type="button">Return to segment</button>
+                        <button id="details-dismiss" class="btn" type="button">Dismiss</button>
+                    </div>
+                `;
+                box.style.display = 'block';
+                const ret = document.getElementById('details-return');
+                const dis = document.getElementById('details-dismiss');
+                if (ret) ret.onclick = () => this.scrollToSegment(this.detailSegmentIndex, true);
+                if (dis) dis.onclick = () => this.hideSegmentDetails();
+            }
+
+            hideSegmentDetails() {
+                const box = document.getElementById('segment-details');
+                if (box) box.style.display = 'none';
+                this.detailSegmentIndex = null;
             }
 
             showError(message) {

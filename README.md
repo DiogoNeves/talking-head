@@ -49,7 +49,17 @@ Top-level fields
 
 ## Viewer
 
-Open `viewer.html` in a browser and drop the source video and the generated JSON to:
+Serve the viewer over HTTP to avoid cross‑origin errors when loading local files:
+
+```bash
+# from the project root
+python -m http.server 8000
+# then open
+open http://localhost:8000/viewer.html  # macOS
+# or: xdg-open http://localhost:8000/viewer.html
+```
+
+In the page, drop the source video and the generated JSON to:
 - Navigate segments and word-level timestamps
 - (Optional) Extract topics via LM Studio at `http://localhost:1234`
 
