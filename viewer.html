@@ -260,7 +260,7 @@
         }
 
         .control-group textarea {
-            height: 80px;
+            height: 160px;
             resize: vertical;
         }
 
@@ -491,9 +491,12 @@
                     <h4>LLM Topic Extraction</h4>
                     <div class="control-group">
                         <label for="model-select">Model:</label>
-                        <select id="model-select">
-                            <option value="">Loading models...</option>
-                        </select>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <select id="model-select">
+                                <option value="">Loading models...</option>
+                            </select>
+                            <button id="retry-models-btn" class="extract-button" type="button">Retry</button>
+                        </div>
                     </div>
                     <div class="control-group">
                         <label for="custom-prompt">Custom Prompt:</label>
@@ -539,6 +542,7 @@
                 this.availableModels = [];
                 this.segmentAnalysis = {};
                 this.analysisInProgress = false;
+                this.preferredModelId = 'openai/gpt-oss-20b';
                 
                 this.initializeEventListeners();
                 this.initializeLLMControlsOnStart();
@@ -564,6 +568,27 @@
                 // Analysis controls
                 const analyzeButton = document.getElementById('analyze-segments-btn');
                 analyzeButton.addEventListener('click', this.analyzeSegments.bind(this));
+                
+                // Retry models button
+                const retryBtn = document.getElementById('retry-models-btn');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', async () => {
+                        const modelSelect = document.getElementById('model-select');
+                        const prevText = retryBtn.textContent;
+                        retryBtn.disabled = true;
+                        retryBtn.textContent = 'Retrying...';
+                        // Show loading state in the dropdown
+                        modelSelect.innerHTML = '<option value="">Loading models...</option>';
+                        try {
+                            await this.initializeLMStudio();
+                        } catch (_) {
+                            // initializeLMStudio already updates status on failure
+                        } finally {
+                            retryBtn.disabled = false;
+                            retryBtn.textContent = prevText;
+                        }
+                    });
+                }
                 
 
                 // Initialize LMStudio connection
@@ -673,6 +698,11 @@
 
             async initializeLMStudio() {
                 try {
+                    // Reset dropdown to loading while connecting
+                    const modelSelect = document.getElementById('model-select');
+                    if (modelSelect) {
+                        modelSelect.innerHTML = '<option value="">Loading models...</option>';
+                    }
                     await this.loadAvailableModels();
                     this.updateConnectionStatus(true);
                 } catch (error) {
@@ -706,8 +736,11 @@
                     modelSelect.appendChild(option);
                 });
                 
-                // Select first model by default
-                if (this.availableModels.length > 0) {
+                // Prefer a specific default model if available
+                const preferred = this.availableModels.find(m => m.id === this.preferredModelId);
+                if (preferred) {
+                    modelSelect.value = preferred.id;
+                } else if (this.availableModels.length > 0) {
                     modelSelect.value = this.availableModels[0].id;
                 }
             }
