@@ -1,6 +1,7 @@
 # Transcribe
 
-Lightweight CLI to extract audio with FFmpeg, transcribe with OpenAI Whisper, and export a clean JSON transcript (segments + word timestamps). Includes a static `viewer.html` to inspect results and extract topics via LM Studio.
+A simple tool to transcribe, analyse and make simple edits for talking head videos.  
+I created this because I needed to for a video, no roadmap yet.
 
 <img width="1939" height="1373" alt="aad10251bc9a9cf2b25ab1028cc8a877" src="https://github.com/user-attachments/assets/ab6fcc7e-382f-4c1d-8f5e-6332a5ca379c" />
 
@@ -8,7 +9,7 @@ Lightweight CLI to extract audio with FFmpeg, transcribe with OpenAI Whisper, an
 
 - Python 3.8–3.11
 - FFmpeg installed system-wide (e.g., `brew install ffmpeg`, `sudo apt install ffmpeg`)
-- Optional: LM Studio running at `http://localhost:1234` for topic extraction in the viewer
+- LM Studio (or any other local OpenAI compatible api) running at `http://localhost:1234` for topic extraction in the viewer
 
 ## Setup
 
