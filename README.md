@@ -1,90 +1,66 @@
-# Video Transcriber
+# Transcribe
 
-Simple Python script that uses OpenAI Whisper Large to transcribe videos with detailed word-level timestamps.
+Lightweight CLI to extract audio with FFmpeg, transcribe with OpenAI Whisper, and export a clean JSON transcript (segments + word timestamps). Includes a static `viewer.html` to inspect results and extract topics via LM Studio.
 
-## Requirements
+## Prerequisites
 
-- Python 3.8-3.11
-- FFmpeg (must be installed system-wide)
+- Python 3.8–3.11
+- FFmpeg installed system-wide (e.g., `brew install ffmpeg`, `sudo apt install ffmpeg`)
+- Optional: LM Studio running at `http://localhost:1234` for topic extraction in the viewer
 
-## Installation
+## Setup
 
-1. Install dependencies:
 ```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
-2. Ensure FFmpeg is installed:
-   - macOS: `brew install ffmpeg`
-   - Ubuntu/Debian: `sudo apt install ffmpeg`
-   - Windows: Download from https://ffmpeg.org/
 
 ## Usage
 
 ```bash
-python transcribe.py VIDEO_FILE OUTPUT_FILE [OPTIONS]
+python transcribe.py INPUT_VIDEO OUTPUT_JSON [OPTIONS]
 ```
 
-### Arguments
-- `VIDEO_FILE`: Path to video file (use `-` for stdin)
-- `OUTPUT_FILE`: Path to output JSON file
+Examples
 
-### Options
-- `--vocab`, `-v`: Path to vocabulary file (one word per line)
-- `--help`: Show help message
-
-### Examples
 ```bash
 # Basic transcription
-python transcribe.py my_video.mp4 transcript.json
+python transcribe.py input.mp4 output/transcript.json
 
-# With custom vocabulary
-python transcribe.py my_video.mp4 transcript.json --vocab vocab.txt
-
-# From stdin (pipe video data)
-cat video.mp4 | python transcribe.py - transcript.json
-
-# Get help
-python transcribe.py --help
+# From stdin with custom vocabulary
+python transcribe.py - output.json --vocab vocab.txt < input.mp4
 ```
 
-### Custom Vocabulary
+Options
 
-You can provide a custom vocabulary file to improve recognition of specific terms:
-- Create a text file with one word per line
-- Include technical terms, names, or domain-specific words
-- The vocabulary helps guide the model's transcription
+- `--vocab,-v PATH`: Plain text file with one term per line to bias recognition
 
-Example vocabulary file (`vocab.txt`):
-```
-Claude
-Anthropic
-AI
-machine learning
-neural network
-```
+## Output JSON
 
-## Output Format
+Top-level fields
 
-The script generates a JSON file with:
-- Full transcript text
-- Detected language
-- Segments with timestamps
-- Word-level timestamps with confidence scores
+- `text`: Full transcript
+- `language`: Detected language (code)
+- `segments[]`: Array of `{ id, start, end, text, words[] }`
+- `words[]`: Array of `{ word, start, end, probability }`
 
-## Features
+## Viewer
 
-- Uses Whisper Large v3 for high accuracy
-- Memory efficient processing
-- Detailed word-level timestamps
-- Automatic audio extraction from video
-- Clean temporary file handling
-- Custom vocabulary support for improved accuracy
-- Stdin support for piped video data
-- Nice CLI interface with Typer
+Open `viewer.html` in a browser and drop the source video and the generated JSON to:
+- Navigate segments and word-level timestamps
+- (Optional) Extract topics via LM Studio at `http://localhost:1234`
 
 ## Notes
 
-- First run will download the Whisper Large model (~3GB)
-- Requires ~10GB GPU memory for optimal performance
-- Works with any video format supported by FFmpeg
+- First run downloads the Whisper model; subsequent runs use the cache
+- No API keys required for the CLI
+
+## Project Structure
+
+- `transcribe.py`: CLI (FFmpeg audio extraction, Whisper transcription, JSON formatting)
+- `viewer.html`: Static transcript viewer + LM Studio topic extraction
+- `requirements.txt`: Runtime dependencies
+
+## License
+
+License will be provided separately.
