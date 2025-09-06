@@ -470,6 +470,70 @@
             color: #666;
             text-transform: uppercase;
         }
+
+        /* Floating Chat */
+        .chat-toggle {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #007AFF;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            z-index: 9999;
+            border: none;
+        }
+
+        .chat-window {
+            position: fixed;
+            right: 16px;
+            bottom: 80px;
+            width: 380px;
+            max-width: calc(100vw - 32px);
+            height: 460px;
+            max-height: calc(100vh - 120px);
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            display: none;
+            z-index: 9999;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .chat-body { flex: 1; overflow-y: auto; padding: 12px; background: #fff; }
+        .chat-footer { border-top: 1px solid #e0e0e0; padding: 8px; background: #fafafa; }
+        .chat-row { display: flex; margin: 6px 0; }
+        .chat-msg { max-width: 80%; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
+        .chat-user { justify-content: flex-end; }
+        .chat-user .chat-msg { background: #007AFF; color: #fff; border-bottom-right-radius: 4px; }
+        .chat-assistant { justify-content: flex-start; }
+        .chat-assistant .chat-msg { background: #f0f3f7; color: #222; border-bottom-left-radius: 4px; }
+        .chat-input-row { display: flex; gap: 6px; }
+        .chat-input-row input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+        .chat-input-row button { padding: 8px 12px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .chat-input-row button:hover { background: #f3f3f3; }
+        .chat-status { font-size: 11px; color: #666; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -579,10 +643,14 @@
                 this.segmentAnalysis = {};
                 this.analysisInProgress = false;
                 this.preferredModelId = 'openai/gpt-oss-20b';
+                this.chatMessages = [];
+                this.chatOpen = false;
+                this.cachedTranscriptText = '';
                 
                 this.initializeEventListeners();
                 this.initializeLLMControlsOnStart();
                 this.initializeJumpControls();
+                this.initializeChatUI();
             }
 
             initializeJumpControls() {
@@ -729,6 +797,7 @@
                     try {
                         this.transcriptData = JSON.parse(e.target.result);
                         this.displayTranscript();
+                        this.buildTranscriptTextCache();
                         // Enable buttons now that we have transcript data
                         document.getElementById('extract-topics-btn').disabled = false;
                         document.getElementById('analyze-segments-btn').disabled = false;
@@ -753,6 +822,13 @@
                 container.style.display = 'block';
                 
                 this.renderTranscriptSegments();
+            }
+
+            buildTranscriptTextCache() {
+                if (!this.transcriptData?.segments) { this.cachedTranscriptText = ''; return; }
+                this.cachedTranscriptText = this.transcriptData.segments
+                    .map(seg => `[${this.formatTime(seg.start)} - ${this.formatTime(seg.end)}] ${seg.text}`)
+                    .join('\n');
             }
 
             async initializeLMStudio() {
@@ -1390,6 +1466,117 @@ Respond in JSON format:
                 document.querySelector('.transcript-panel .panel-content').prepend(errorDiv);
                 
                 setTimeout(() => errorDiv.remove(), 5000);
+            }
+
+            // Chat UI
+            initializeChatUI() {
+                // Inject chat HTML at end of body
+                const chatToggle = document.createElement('button');
+                chatToggle.id = 'chat-toggle';
+                chatToggle.className = 'chat-toggle';
+                chatToggle.title = 'Chat about the transcript';
+                chatToggle.innerText = '🙂';
+                document.body.appendChild(chatToggle);
+
+                const chatWindow = document.createElement('div');
+                chatWindow.id = 'chat-window';
+                chatWindow.className = 'chat-window';
+                chatWindow.innerHTML = `
+                    <div class="chat-header">
+                        <div>Transcript Chat</div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span id="chat-hint" style="font-weight:400; color:#666; font-size:12px;">Uses selected model</span>
+                            <button id="chat-close" class="details-actions btn" style="padding:4px 8px;">Close</button>
+                        </div>
+                    </div>
+                    <div id="chat-body" class="chat-body">
+                        <div class="chat-status">Drop a transcript to begin. Ask questions about segments, timings, wording, or issues.</div>
+                    </div>
+                    <div class="chat-footer">
+                        <div class="chat-input-row">
+                            <input id="chat-input" type="text" placeholder="Ask about the transcript..." />
+                            <button id="chat-send" type="button">Send</button>
+                        </div>
+                        <div id="chat-status" class="chat-status"></div>
+                    </div>
+                `;
+                document.body.appendChild(chatWindow);
+
+                const toggle = () => {
+                    this.chatOpen = !this.chatOpen;
+                    chatWindow.style.display = this.chatOpen ? 'flex' : 'none';
+                    if (this.chatOpen) this.scrollChatToBottom();
+                };
+                chatToggle.addEventListener('click', toggle);
+                chatWindow.querySelector('#chat-close').addEventListener('click', toggle);
+
+                const sendBtn = chatWindow.querySelector('#chat-send');
+                const input = chatWindow.querySelector('#chat-input');
+                input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.handleChatSend(); } });
+                sendBtn.addEventListener('click', () => this.handleChatSend());
+            }
+
+            setChatStatus(text) {
+                const el = document.getElementById('chat-status');
+                if (el) el.textContent = text || '';
+            }
+
+            renderChatMessages() {
+                const body = document.getElementById('chat-body');
+                if (!body) return;
+                body.innerHTML = this.chatMessages.map(m => {
+                    const cls = m.role === 'user' ? 'chat-user' : 'chat-assistant';
+                    const safe = (m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `<div class="chat-row ${cls}"><div class="chat-msg">${safe}</div></div>`;
+                }).join('');
+                this.scrollChatToBottom();
+            }
+
+            scrollChatToBottom() {
+                const body = document.getElementById('chat-body');
+                if (body) body.scrollTop = body.scrollHeight;
+            }
+
+            async handleChatSend() {
+                const input = document.getElementById('chat-input');
+                const question = (input?.value || '').trim();
+                if (!question) return;
+                if (!this.transcriptData?.segments?.length) { this.setChatStatus('Load a transcript first.'); return; }
+                const modelSelect = document.getElementById('model-select');
+                const selectedModel = modelSelect?.value;
+                if (!selectedModel) { this.setChatStatus('Select a model in Topics panel.'); return; }
+
+                // Optimistically append user message
+                this.chatMessages.push({ role: 'user', content: question });
+                this.renderChatMessages();
+                input.value = '';
+                this.setChatStatus('Thinking...');
+
+                try {
+                    // Ensure transcript cache is built
+                    if (!this.cachedTranscriptText) this.buildTranscriptTextCache();
+
+                    const messages = [
+                        { role: 'system', content: 'You are a helpful assistant that answers questions about a video transcript to help with editing and debugging. Be specific and reference segment numbers and timestamps when possible.' },
+                        { role: 'user', content: `Transcript (keep in context):\n${this.cachedTranscriptText}` },
+                        ...this.chatMessages
+                    ];
+
+                    const resp = await fetch(`${this.lmStudioUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: selectedModel, messages, temperature: 0.2 })
+                    });
+
+                    if (!resp.ok) throw new Error(`Chat request failed: ${resp.statusText}`);
+                    const data = await resp.json();
+                    const content = data.choices?.[0]?.message?.content || '(no response)';
+                    this.chatMessages.push({ role: 'assistant', content });
+                    this.renderChatMessages();
+                    this.setChatStatus('');
+                } catch (e) {
+                    this.setChatStatus(e.message || 'Chat failed');
+                }
             }
         }
 
