@@ -2,6 +2,8 @@
 
 Lightweight CLI to extract audio with FFmpeg, transcribe with OpenAI Whisper, and export a clean JSON transcript (segments + word timestamps). Includes a static `viewer.html` to inspect results and extract topics via LM Studio.
 
+<img width="1939" height="1373" alt="aad10251bc9a9cf2b25ab1028cc8a877" src="https://github.com/user-attachments/assets/ab6fcc7e-382f-4c1d-8f5e-6332a5ca379c" />
+
 ## Prerequisites
 
 - Python 3.8–3.11
