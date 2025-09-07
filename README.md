@@ -63,6 +63,24 @@ In the page, drop the source video and the generated JSON to:
 - Navigate segments and word-level timestamps
 - (Optional) Extract topics via LM Studio at `http://localhost:1234`
 
+### Optional: Transcribe from the Viewer
+
+You can transcribe directly from the browser via a tiny local API:
+
+1) Start the API server (once, in a separate terminal):
+
+```bash
+source .venv/bin/activate
+python server.py   # runs at http://localhost:8000
+```
+
+2) In `viewer.html`, load a video in the left panel. In the Transcript panel, click the “Transcribe” button (under the drop zone). The page uploads the video to `http://localhost:8000/api/transcribe` and displays the transcript when done.
+
+Notes:
+- Requires FFmpeg installed and available on PATH.
+- Uses the same Whisper pipeline as the CLI (Large‑v3, word timestamps).
+- CORS is enabled for local use; do not expose the server publicly.
+
 ## Notes
 
 - First run downloads the Whisper model; subsequent runs use the cache
