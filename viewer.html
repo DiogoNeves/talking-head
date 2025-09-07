@@ -1435,10 +1435,12 @@ Respond in JSON format:
                     segment.addEventListener('click', () => {
                         const startTime = parseFloat(segment.dataset.start);
                         const index = parseInt(segment.dataset.index);
-                        
+
                         if (this.videoElement) {
                             this.videoElement.currentTime = startTime;
                         }
+                        // Highlight selection immediately
+                        this.scrollToSegment(index, true);
                         this.showSegmentDetails(index);
                     });
                 });
@@ -1471,10 +1473,12 @@ Respond in JSON format:
                     segment.addEventListener('click', () => {
                         const startTime = parseFloat(segment.dataset.start);
                         const index = parseInt(segment.dataset.index);
-                        
+
                         if (this.videoElement) {
                             this.videoElement.currentTime = startTime;
                         }
+                        // Highlight selection immediately
+                        this.scrollToSegment(index, true);
                         this.showSegmentDetails(index);
                     });
                 });
@@ -1491,6 +1495,11 @@ Respond in JSON format:
             scrollToSegment(index, highlight = false) {
                 const el = this.getSegmentElement(index);
                 if (!el) return false;
+                if (highlight) {
+                    document.querySelectorAll('.segment.active').forEach(s => s.classList.remove('active'));
+                    el.classList.add('active');
+                    this.currentSegmentIndex = index;
+                }
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 if (highlight) {
                     el.classList.remove('pulse-highlight');
