@@ -1313,9 +1313,9 @@ Respond in JSON format:
                 const currentTime = this.videoElement.currentTime;
                 document.getElementById('current-time').textContent = this.formatTime(currentTime);
                 
-                // Find current segment
+                // Find current segment (start inclusive, end exclusive to avoid boundary off-by-one)
                 const currentSegment = this.transcriptData.segments.findIndex(segment =>
-                    currentTime >= segment.start && currentTime <= segment.end
+                    currentTime >= segment.start && currentTime < segment.end
                 );
                 
                 if (currentSegment !== this.currentSegmentIndex) {

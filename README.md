@@ -49,35 +49,34 @@ Top-level fields
 
 ## Viewer
 
-Serve the viewer over HTTP to avoid cross‑origin errors when loading local files:
+There are two ways to run the viewer.
+
+1) Quick start (recommended)
 
 ```bash
-# from the project root
-python -m http.server 8000
-# then open
-open http://localhost:8000/viewer.html  # macOS
-# or: xdg-open http://localhost:8000/viewer.html
+# From the project root
+bash run.sh
+# Frontend: http://localhost:8080/viewer.html
+# Backend:  http://localhost:8000 (API for in‑browser transcription)
 ```
 
-In the page, drop the source video and the generated JSON to:
+In the page, drop your source video and the generated transcript JSON to:
 - Navigate segments and word-level timestamps
 - (Optional) Extract topics via LM Studio at `http://localhost:1234`
 
-### Optional: Transcribe from the Viewer
+The Transcript panel also shows a “Transcribe” button when a video is loaded; clicking it uploads the video to `http://localhost:8000/api/transcribe` and displays the results.
 
-You can transcribe directly from the browser via a tiny local API:
-
-1) Start the API server (once, in a separate terminal):
+2) Manual run
 
 ```bash
-source .venv/bin/activate
-python server.py   # runs at http://localhost:8000
+# Serve the static viewer
+python -m http.server 8080
+# In another terminal, run the local API (for in‑browser transcription)
+source .venv/bin/activate && python server.py  # http://localhost:8000
 ```
 
-2) In `viewer.html`, load a video in the left panel. In the Transcript panel, click the “Transcribe” button (under the drop zone). The page uploads the video to `http://localhost:8000/api/transcribe` and displays the transcript when done.
-
 Notes:
-- Requires FFmpeg installed and available on PATH.
+- Requires FFmpeg on PATH for transcription (CLI and server).
 - Uses the same Whisper pipeline as the CLI (Large‑v3, word timestamps).
 - CORS is enabled for local use; do not expose the server publicly.
 
