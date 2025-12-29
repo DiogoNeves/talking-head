@@ -88,8 +88,10 @@ Notes:
 ## Project Structure
 
 - `transcribe.py`: CLI (FFmpeg audio extraction, Whisper transcription, JSON formatting)
-- `viewer.html`: Static transcript viewer + LM Studio topic extraction
-- `requirements.txt`: Runtime dependencies
+- `server.py`: Local Flask API for in-browser transcription (used by `viewer.html`)
+- `viewer.html`: Static transcript viewer + in-browser transcription + LM Studio topic extraction
+- `run.sh`: Convenience launcher (sets up venv, installs deps, starts viewer + API)
+- `requirements.txt`: Runtime dependencies (CLI + local server)
 
 ## License
 

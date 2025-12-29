@@ -2,10 +2,12 @@
 
 ## Project Structure & Module Organization
 - `transcribe.py`: Main CLI tool (audio extraction with FFmpeg, transcription with Whisper, JSON formatting).
-- `requirements.txt`: Python dependencies for the CLI (no dev extras).
-- `viewer.html`: Static viewer to inspect generated transcripts and extract topics via LM Studio.
+- `server.py`: Local Flask API used by `viewer.html` for in-browser transcription (reuses `transcribe.py`).
+- `viewer.html`: Static viewer to inspect transcripts, request in-browser transcription, and extract topics via LM Studio.
+- `run.sh`: Convenience launcher that sets up the venv, installs deps, and starts the viewer + API.
+- `requirements.txt`: Python dependencies for the CLI and local server (no dev extras).
 - `README.md`: Usage overview and examples.
-- No package layout or test directory yet; keep modules small and cohesive inside `transcribe.py` unless growth warrants a `src/` package.
+- No package layout or test directory yet; keep modules small and cohesive, reusing `transcribe.py` helpers unless growth warrants a `src/` package.
 
 ## Build, Test, and Development Commands
 - Create venv and install deps:
@@ -20,6 +22,15 @@
   python transcribe.py - output.json --vocab vocab.txt < input.mp4
   ```
 - Inspect results: open `viewer.html` in a browser, then drop the video and the generated JSON.
+- Run the viewer + API together (recommended):
+  ```bash
+  bash run.sh
+  ```
+- Manual viewer/API:
+  ```bash
+  python -m http.server 8080
+  source .venv/bin/activate && python server.py
+  ```
 
 ## Coding Style & Naming Conventions
 - Python 3.8–3.11, PEP 8, 4‑space indentation; use type hints (`typing`) and concise docstrings.
@@ -39,3 +50,4 @@
 ## Security & Configuration Tips
 - Do not commit media, model files, or large outputs (already ignored). Keep secrets out of code; no API keys are required for the CLI.
 - LM Studio usage in `viewer.html` defaults to `http://localhost:1234`; document any local changes in PRs.
+- The local API enables CORS for development; do not expose `server.py` publicly.
