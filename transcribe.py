@@ -4,7 +4,7 @@ import tempfile
 import os
 from pathlib import Path
 import gc
-from typing import Optional
+from typing import Optional, Set
 
 import typer
 import whisper
@@ -94,20 +94,112 @@ def format_output(result):
     return output
 
 
+def _format_srt_timestamp(seconds: float) -> str:
+    total_ms = int(round(seconds * 1000))
+    hours, remainder = divmod(total_ms, 3600 * 1000)
+    minutes, remainder = divmod(remainder, 60 * 1000)
+    secs, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def format_srt(formatted_result: dict) -> str:
+    """Format the transcription result as SRT subtitle content."""
+    lines = []
+    index = 1
+    for segment in formatted_result["segments"]:
+        text = segment["text"].strip()
+        if not text:
+            continue
+        start = _format_srt_timestamp(segment["start"])
+        end = _format_srt_timestamp(segment["end"])
+        lines.append(str(index))
+        lines.append(f"{start} --> {end}")
+        lines.append(text)
+        lines.append("")
+        index += 1
+    if not lines:
+        return ""
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def format_plain_text(formatted_result: dict) -> str:
+    """Format the transcription result as plain text."""
+    text = formatted_result.get("text", "").strip()
+    if not text:
+        return ""
+    return text + "\n"
+
+
+def parse_output_formats(format_arg: str) -> Set[str]:
+    normalized = (format_arg or "").strip().lower()
+    if not normalized:
+        return set()
+    if normalized == "all":
+        return {"json", "srt", "text"}
+    parts = [part.strip().lower() for part in normalized.split(",") if part.strip()]
+    allowed = {"json", "srt", "text"}
+    unknown = [part for part in parts if part not in allowed]
+    if unknown:
+        raise ValueError(f"Unknown format(s): {', '.join(unknown)}. Use all,json,srt,text.")
+    return set(parts)
+
+
+def ensure_output_dir_writable(output_dir: Path) -> None:
+    """Ensure the output directory exists and is writable."""
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise RuntimeError(f"Output directory '{output_dir}' is not writable: {e}")
+
+    try:
+        with tempfile.NamedTemporaryFile(dir=output_dir, prefix=".write_test_", delete=True) as temp_file:
+            temp_file.write(b"")
+            temp_file.flush()
+    except Exception as e:
+        raise RuntimeError(f"Output directory '{output_dir}' is not writable: {e}")
+
+
 def main(
     video_path: str = typer.Argument(
         help="Path to video file (use '-' for stdin)"
     ),
     output_path: str = typer.Argument(
-        help="Path to output JSON file"
+        help="Path to output directory or base output file"
     ),
     vocabulary: Optional[str] = typer.Option(
         None, "--vocab", "-v",
         help="Path to vocabulary file (one word per line)"
+    ),
+    format_option: str = typer.Option(
+        "all", "--format", "-f",
+        help="Output formats: all,json,srt,text (comma-separated). Default: all"
+    ),
+    srt: bool = typer.Option(
+        False, "--srt", hidden=True,
+        help="Deprecated. Use --format srt"
+    ),
+    text: bool = typer.Option(
+        False, "--text", hidden=True,
+        help="Deprecated. Use --format text"
     )
 ):
     """Transcribe video using OpenAI Whisper Large with word-level timestamps."""
-    
+
+    source_label = video_path
+    try:
+        output_formats = parse_output_formats(format_option)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    if srt:
+        output_formats.add("srt")
+    if text:
+        output_formats.add("text")
+    if not output_formats:
+        typer.echo("Error: No output formats selected", err=True)
+        raise typer.Exit(1)
+
     # Handle stdin input
     stdin_temp_path = None
     if video_path == "-":
@@ -123,6 +215,35 @@ def main(
         typer.echo(f"Error: Video file '{video_path}' not found", err=True)
         raise typer.Exit(1)
     
+    # Resolve output paths
+    output_arg = Path(output_path)
+    output_dir = None
+    output_path_hint = None
+
+    if output_arg.exists():
+        if output_arg.is_dir():
+            output_dir = output_arg
+        else:
+            output_dir = output_arg.parent
+            output_path_hint = output_arg
+    elif output_arg.suffix:
+        output_dir = output_arg.parent
+        output_path_hint = output_arg
+    else:
+        output_dir = output_arg
+
+    ensure_output_dir_writable(output_dir)
+
+    if output_path_hint:
+        base_name = output_path_hint.stem or "transcript"
+    else:
+        if source_label == "-":
+            base_name = "transcript"
+        else:
+            base_name = Path(source_label).stem or "transcript"
+
+    output_base = output_dir / base_name
+
     # Create temporary audio file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
         temp_audio_path = temp_audio.name
@@ -141,13 +262,29 @@ def main(
         # Format output
         formatted_result = format_output(result)
         
-        # Save to JSON file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(formatted_result, f, indent=2, ensure_ascii=False)
-        
-        typer.echo(f"✅ Transcription completed! Output saved to {output_path}")
+        typer.echo("✅ Transcription completed!")
         typer.echo(f"🗣️  Detected language: {result['language']}")
         typer.echo(f"📝 Total segments: {len(result['segments'])}")
+
+        if "json" in output_formats:
+            if output_path_hint and output_path_hint.suffix.lower() == ".json":
+                output_json_path = output_path_hint
+            else:
+                output_json_path = output_base.with_suffix(".json")
+            with open(output_json_path, 'w', encoding='utf-8') as f:
+                json.dump(formatted_result, f, indent=2, ensure_ascii=False)
+            typer.echo(f"🧾 JSON output saved to {output_json_path}")
+
+        if "srt" in output_formats:
+            srt_path = output_base.with_suffix(".srt")
+            with open(srt_path, "w", encoding="utf-8") as f:
+                f.write(format_srt(formatted_result))
+            typer.echo(f"💬 SRT output saved to {srt_path}")
+        if "text" in output_formats:
+            text_path = output_base.with_suffix(".txt")
+            with open(text_path, "w", encoding="utf-8") as f:
+                f.write(format_plain_text(formatted_result))
+            typer.echo(f"📝 Text output saved to {text_path}")
         
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)

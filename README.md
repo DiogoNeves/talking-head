@@ -21,8 +21,11 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python transcribe.py INPUT_VIDEO OUTPUT_JSON [OPTIONS]
+python transcribe.py INPUT_VIDEO OUTPUT_PATH [OPTIONS]
 ```
+
+`OUTPUT_PATH` can be a directory or a base output file path. When a directory is provided, the output files are named after the input video (or `transcript` for stdin).
+By default, all formats are written (`json`, `srt`, `text`).
 
 Examples
 
@@ -30,13 +33,26 @@ Examples
 # Basic transcription
 python transcribe.py input.mp4 output/transcript.json
 
+# Output to a directory (auto-names based on input)
+python transcribe.py input.mp4 output/
+
 # From stdin with custom vocabulary
 python transcribe.py - output.json --vocab vocab.txt < input.mp4
+
+# All outputs (default: JSON + SRT + TXT)
+python transcribe.py input.mp4 output/
+
+# JSON only
+python transcribe.py input.mp4 output/ --format json
+
+# SRT + TXT only
+python transcribe.py input.mp4 output/ --format srt,text
 ```
 
 Options
 
 - `--vocab,-v PATH`: Plain text file with one term per line to bias recognition
+- `--format,-f VALUE`: `all` (default) or a comma-separated list of `json,srt,text`
 
 ## Output JSON
 
