@@ -18,9 +18,10 @@
 - Ensure FFmpeg is installed (e.g., `brew install ffmpeg`).
 - Transcribe locally:
   ```bash
-  python transcribe.py input.mp4 output/transcript.json
+  python transcribe.py input.mp4 output/transcript.json --vocab vocab.txt
   python transcribe.py - output.json --vocab vocab.txt < input.mp4
   ```
+- Use the existing `vocab.txt` when transcribing unless instructed otherwise.
 - Inspect results: open `viewer.html` in a browser, then drop the video and the generated JSON.
 - Run the viewer + API together (recommended):
   ```bash

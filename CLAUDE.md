@@ -14,7 +14,6 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # CLI transcription
-python transcribe.py input.mp4 output.json
 python transcribe.py input.mp4 output.json --vocab vocab.txt
 
 # Run viewer with backend (preferred)
@@ -33,7 +32,7 @@ python server.py
 - Uses FFmpeg to extract 16kHz mono WAV audio from video
 - Loads Whisper large-v3 model for transcription with word timestamps
 - Outputs JSON with `text`, `language`, `segments[].{id, start, end, text, words[]}`
-- Supports optional vocabulary file to bias recognition via initial prompt
+- Uses the repository `vocab.txt` to bias recognition via initial prompt
 
 **API Server (`server.py`)**:
 - Flask server with CORS enabled on port 8000
