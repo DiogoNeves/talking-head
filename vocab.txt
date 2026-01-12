@@ -1,3 +1,5 @@
 Storyloop
 ChatGPT
 Loopie
+OpenCode
+Claude
