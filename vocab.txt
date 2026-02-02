@@ -3,3 +3,4 @@ ChatGPT
 Loopie
 OpenCode
 Claude
+Codex
